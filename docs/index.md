@@ -1,12 +1,12 @@
 ---
-page_title: "Satan1an/tidb Provider"
+page_title: "mf-troy/tidb Provider"
 description: |-
   Terraform provider for managing TiDB users, grants, roles, and related access objects.
 ---
 
-# Satan1an/tidb Provider
+# mf-troy/tidb Provider
 
-The `Satan1an/tidb` provider manages TiDB users, grants, roles, and related access objects.
+The `mf-troy/tidb` provider manages TiDB users, grants, roles, and related access objects.
 
 This provider is based on the `petoju/mysql` fork and is being adapted for reliable TiDB lifecycle management.
 
@@ -27,7 +27,7 @@ While TiDB is MySQL-compatible in many areas, role lifecycle behavior requires m
 terraform {
   required_providers {
     tidb = {
-      source  = "Satan1an/tidb"
+      source  = "mf-troy/tidb"
       version = "~> 0.1"
     }
   }

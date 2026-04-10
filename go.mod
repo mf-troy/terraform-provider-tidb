@@ -1,4 +1,4 @@
-module github.com/Satan1an/terraform-provider-tidb
+module github.com/mf-troy/terraform-provider-tidb
 
 go 1.25.7
 

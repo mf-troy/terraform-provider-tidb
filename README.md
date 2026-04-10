@@ -107,7 +107,7 @@ After publication, the intended usage will look like:
 terraform {
   required_providers {
     tidb = {
-      source  = "Satan1an/tidb"
+      source  = "mf-troy/tidb"
       version = "~> 0.1"
     }
   }
