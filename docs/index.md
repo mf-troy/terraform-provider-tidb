@@ -1,27 +1,47 @@
 ---
 page_title: "mf-troy/tidb Provider"
 description: |-
-  Terraform provider for managing TiDB users, grants, roles, and related access objects.
+  Terraform provider for managing TiDB users, roles, grants, and TiDB-specific configuration with MySQL-compatible resources.
 ---
 
 # mf-troy/tidb Provider
 
-The `mf-troy/tidb` provider manages TiDB users, grants, roles, and related access objects.
+The `mf-troy/tidb` provider is a TiDB-oriented Terraform provider built on top of the MySQL provider model.
 
-This provider is based on the `petoju/mysql` fork and is being adapted for reliable TiDB lifecycle management.
+It is designed for teams that need to manage TiDB access declaratively with Terraform, especially when:
+
+- database users are provisioned centrally
+- X509 / certificate-based access is required
+- roles must be granted and revoked predictably
+- legacy role formats already exist in Terraform state
+
+## What this provider is for
+
+The provider focuses on reliable TiDB user lifecycle management:
+
+- create and update users
+- enforce TLS / X509 authentication requirements
+- grant roles to users and roles
+- manage default roles
+- manage TiDB configuration resources already supported by the upstream codebase
+
+Although many resources still use the historical `mysql_*` naming prefix, this provider should be treated as TiDB-first in behavior and documentation.
 
 ## Why this provider exists
 
-We use Terraform to manage a large number of TiDB database users.
+We use Terraform to manage a large number of TiDB users.
 
-While TiDB is MySQL-compatible in many areas, role lifecycle behavior requires more careful handling than the generic MySQL provider currently offers. In particular, this provider focuses on stable Terraform behavior for:
+The upstream MySQL-compatible provider is a strong base, but TiDB role lifecycle handling needs tighter guarantees than generic MySQL-oriented quoting and parsing provide. In particular, this fork improves stability around:
 
-- role grants
-- role revokes
-- default roles
-- mixed role identifier formats
+- `GRANT role TO user`
+- `REVOKE role FROM user`
+- `ALTER USER ... DEFAULT ROLE`
+- mixed role identifier formats such as:
+  - `teleport_reader`
+  - `teleport_reader@%`
+  - `'teleport_reader'@'%'`
 
-## Example Usage
+## Getting started
 
 ```hcl
 terraform {
@@ -41,7 +61,9 @@ provider "tidb" {
 }
 ```
 
-## Example: X509 user for Teleport
+## Common Teleport / X509 pattern
+
+This is the most common access model for our TiDB usage:
 
 ```hcl
 resource "mysql_user" "teleport_reader" {
@@ -57,8 +79,18 @@ resource "mysql_grant" "teleport_reader_role" {
 }
 ```
 
-## Notes
+## Important notes
 
-- Resource names currently retain the `mysql_*` prefix for backward compatibility while TiDB-specific behavior is improved in the provider implementation.
-- Legacy quoted role identifiers such as `"'teleport_reader'@'%'"` are normalized automatically by this provider where supported.
-- The long-term goal of this provider is reliable desired-state TiDB user management from Terraform modules.
+- Resource names currently retain the `mysql_*` prefix for backward compatibility.
+- The provider normalizes legacy quoted role identifiers where supported.
+- This provider is intended to become the stable Terraform interface for TiDB user and role management, instead of relying on generic MySQL behavior where TiDB semantics differ.
+
+## Most relevant resources
+
+For TiDB user management, start with:
+
+- `mysql_user`
+- `mysql_grant`
+- `mysql_default_roles`
+- `mysql_role`
+- `mysql_ti_config`

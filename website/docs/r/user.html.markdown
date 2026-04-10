@@ -11,6 +11,8 @@ description: |-
 The ``mysql_user`` resource creates and manages a user on a MySQL
 server.
 
+For TiDB usage, this is commonly used together with `tls_option = "X509"` to create certificate-based users for Teleport or other PKI-driven access flows.
+
 ~> **Note:** The password for the user is provided in plain text, and is
 obscured by an unsalted hash in the state
 [Read more about sensitive data in state](https://www.terraform.io/language/state/sensitive-data).
@@ -23,6 +25,16 @@ resource "mysql_user" "jdoe" {
   user               = "jdoe"
   host               = "example.com"
   plaintext_password = "password"
+}
+```
+
+## Example Usage for TiDB X509 Access
+
+```hcl
+resource "mysql_user" "teleport_user" {
+  user       = "alice"
+  host       = "%"
+  tls_option = "X509"
 }
 ```
 

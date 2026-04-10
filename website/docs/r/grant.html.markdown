@@ -11,6 +11,8 @@ description: |-
 The ``mysql_grant`` resource creates and manages privileges given to
 a user on a MySQL server.
 
+For TiDB usage, this is also the main resource used to grant roles to users and roles.
+
 ## Granting Privileges to a User
 
 ```hcl
@@ -68,6 +70,8 @@ resource "mysql_grant" "developer" {
 ~> **Note:** MySQL removed the `REQUIRE` option from `GRANT` in version 8. `tls_option` is ignored in MySQL 8 and above.
 
 ~> **Note:** Attributes `role` and `roles` are only supported in MySQL 8 and above.
+
+~> **TiDB note:** This provider is commonly used with TiDB role grants such as `roles = ["teleport_reader"]`. Legacy quoted role identifiers like `"'teleport_reader'@'%'"` are normalized by the provider where supported.
 
 The following arguments are supported:
 
