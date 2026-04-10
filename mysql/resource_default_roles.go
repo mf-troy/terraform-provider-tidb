@@ -63,7 +63,7 @@ func alterUserDefaultRoles(ctx context.Context, db *sql.DB, user, host string, r
 	stmtSQL = fmt.Sprintf("ALTER USER '%s'@'%s' DEFAULT ROLE ", user, host)
 
 	if len(roles) > 0 {
-		stmtSQL += fmt.Sprintf("'%s'", strings.Join(roles, "', '"))
+		stmtSQL += strings.Join(roleIdentifiersSQL(roles), ", ")
 	} else {
 		stmtSQL += "NONE"
 	}
@@ -81,7 +81,7 @@ func getRolesFromData(d *schema.ResourceData) []string {
 	defaultRoles := d.Get("roles").(*schema.Set).List()
 	roles := make([]string, len(defaultRoles))
 	for i, role := range defaultRoles {
-		roles[i] = role.(string)
+		roles[i] = normalizeRoleIdentifier(role.(string))
 	}
 
 	return roles

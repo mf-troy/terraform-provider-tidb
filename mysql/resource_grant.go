@@ -87,6 +87,62 @@ func (u UserOrRole) Equals(other UserOrRole) bool {
 	return u.Host == other.Host
 }
 
+func normalizeRoleIdentifier(role string) string {
+	role = strings.TrimSpace(role)
+	if role == "" {
+		return role
+	}
+
+	parsedRole, err := parseUserOrRoleFromRow(role)
+	if err != nil || parsedRole == nil {
+		return strings.Trim(role, "'`\" ")
+	}
+
+	if parsedRole.Host == "" || parsedRole.Host == "%" {
+		return parsedRole.Name
+	}
+
+	return parsedRole.IDString()
+}
+
+func normalizeRoleIdentifiers(roles []string) []string {
+	normalizedRoles := make([]string, 0, len(roles))
+	for _, role := range roles {
+		normalizedRole := normalizeRoleIdentifier(role)
+		if normalizedRole == "" {
+			continue
+		}
+		normalizedRoles = append(normalizedRoles, normalizedRole)
+	}
+	return normalizedRoles
+}
+
+func roleIdentifierSQL(role string) string {
+	normalizedRole := normalizeRoleIdentifier(role)
+	if normalizedRole == "" {
+		return "''@'%'"
+	}
+
+	parsedRole, err := parseUserOrRoleFromRow(normalizedRole)
+	if err != nil || parsedRole == nil {
+		return fmt.Sprintf("'%s'@'%%'", normalizedRole)
+	}
+
+	if parsedRole.Host == "" {
+		parsedRole.Host = "%"
+	}
+
+	return parsedRole.SQLString()
+}
+
+func roleIdentifiersSQL(roles []string) []string {
+	sqlRoles := make([]string, 0, len(roles))
+	for _, role := range roles {
+		sqlRoles = append(sqlRoles, roleIdentifierSQL(role))
+	}
+	return sqlRoles
+}
+
 type TablePrivilegeGrant struct {
 	Database   string
 	Table      string
@@ -279,7 +335,7 @@ func (t *RoleGrant) GrantOption() bool {
 }
 
 func (t *RoleGrant) SQLGrantStatement() string {
-	stmtSql := fmt.Sprintf("GRANT '%s' TO %s", strings.Join(t.Roles, "', '"), t.UserOrRole.SQLString())
+	stmtSql := fmt.Sprintf("GRANT %s TO %s", strings.Join(roleIdentifiersSQL(t.Roles), ", "), t.UserOrRole.SQLString())
 	if t.TLSOption != "" && strings.ToLower(t.TLSOption) != "none" {
 		stmtSql += fmt.Sprintf(" REQUIRE %s", t.TLSOption)
 	}
@@ -290,7 +346,7 @@ func (t *RoleGrant) SQLGrantStatement() string {
 }
 
 func (t *RoleGrant) SQLRevokeStatement() string {
-	return fmt.Sprintf("REVOKE '%s' FROM %s", strings.Join(t.Roles, "', '"), t.UserOrRole.SQLString())
+	return fmt.Sprintf("REVOKE %s FROM %s", strings.Join(roleIdentifiersSQL(t.Roles), ", "), t.UserOrRole.SQLString())
 }
 
 func (t *RoleGrant) GetRoles() []string {
@@ -298,7 +354,7 @@ func (t *RoleGrant) GetRoles() []string {
 }
 
 func (t *RoleGrant) AppendRoles(roles []string) {
-	t.Roles = append(t.Roles, roles...)
+	t.Roles = append(t.Roles, normalizeRoleIdentifiers(roles)...)
 }
 
 func (t *RoleGrant) ConflictsWithGrant(other MySQLGrant) bool {
@@ -432,7 +488,7 @@ func parseResourceFromData(d *schema.ResourceData) (MySQLGrant, diag.Diagnostics
 
 	// Step 3a: If `roles` is specified, we have a role grant
 	if attr, ok := d.GetOk("roles"); ok {
-		roles := setToArray(attr)
+		roles := normalizeRoleIdentifiers(setToArray(attr))
 		return &RoleGrant{
 			Roles:      roles,
 			Grant:      grantOption,
@@ -840,25 +896,27 @@ func getMatchingGrant(ctx context.Context, db *sql.DB, desiredGrant MySQLGrant) 
 	return result, nil
 }
 
-var (
-	kUserOrRoleRegex = regexp.MustCompile("['`]?([^'`]+)['`]?(?:@['`]?([^'`]+)['`]?)?")
-)
-
 func parseUserOrRoleFromRow(userOrRoleStr string) (*UserOrRole, error) {
-	userHostMatches := kUserOrRoleRegex.FindStringSubmatch(userOrRoleStr)
-	if len(userHostMatches) == 3 {
-		return &UserOrRole{
-			Name: userHostMatches[1],
-			Host: userHostMatches[2],
-		}, nil
-	} else if len(userHostMatches) == 2 {
-		return &UserOrRole{
-			Name: userHostMatches[1],
-			Host: "%",
-		}, nil
-	} else {
+	userOrRoleStr = strings.TrimSpace(userOrRoleStr)
+	if userOrRoleStr == "" {
 		return nil, fmt.Errorf("failed to parse user or role portion of grant statement: %s", userOrRoleStr)
 	}
+
+	trimIdentifier := func(identifier string) string {
+		return strings.Trim(strings.TrimSpace(identifier), "'`\" ")
+	}
+
+	if parts := strings.SplitN(userOrRoleStr, "@", 2); len(parts) == 2 {
+		return &UserOrRole{
+			Name: trimIdentifier(parts[0]),
+			Host: trimIdentifier(parts[1]),
+		}, nil
+	}
+
+	return &UserOrRole{
+		Name: trimIdentifier(userOrRoleStr),
+		Host: "",
+	}, nil
 }
 
 var (
@@ -962,7 +1020,7 @@ func parseGrantFromRow(grantStr string) (MySQLGrant, error) {
 		roles := make([]string, len(rolesStart))
 
 		for i, role := range rolesStart {
-			roles[i] = strings.Trim(role, "`@%\" ")
+			roles[i] = normalizeRoleIdentifier(role)
 		}
 
 		userOrRole, err := parseUserOrRoleFromRow(roleMatches[2])
