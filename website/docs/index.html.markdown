@@ -43,32 +43,33 @@ provider "tidb" {
 }
 ```
 
-## Common Teleport / X509 Pattern
+## Common Role Grant Pattern
 
 ```hcl
-resource "mysql_user" "teleport_reader" {
+resource "mysql_user" "readonly_user" {
   user       = "alice"
   host       = "%"
   tls_option = "X509"
 }
 
-resource "mysql_grant" "teleport_reader_role" {
-  user  = mysql_user.teleport_reader.user
-  host  = mysql_user.teleport_reader.host
-  roles = ["teleport_reader"]
+resource "mysql_grant" "readonly_role" {
+  user  = mysql_user.readonly_user.user
+  host  = mysql_user.readonly_user.host
+  roles = ["readonly_role"]
 }
 ```
 
 ## Why this fork exists
-
-We use Terraform to manage a large number of TiDB users.
 
 The upstream MySQL-compatible provider is a strong base, but TiDB role lifecycle handling requires more careful quoting and normalization than generic MySQL-oriented assumptions provide. This provider improves predictability for:
 
 - `GRANT role TO user`
 - `REVOKE role FROM user`
 - `ALTER USER ... DEFAULT ROLE`
-- mixed role identifier formats in configuration and state
+- mixed role identifier formats in configuration and state, for example:
+  - `readonly_role`
+  - `readonly_role@%`
+  - `'readonly_role'@'%'`
 
 ## Notes
 

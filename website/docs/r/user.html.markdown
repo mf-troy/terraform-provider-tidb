@@ -11,7 +11,7 @@ description: |-
 The ``mysql_user`` resource creates and manages a user on a MySQL
 server.
 
-For TiDB usage, this is commonly used together with `tls_option = "X509"` to create certificate-based users for Teleport or other PKI-driven access flows.
+For TiDB usage, this is commonly used together with `tls_option = "X509"` to create certificate-based users for PKI-driven access flows.
 
 ~> **Note:** The password for the user is provided in plain text, and is
 obscured by an unsalted hash in the state
@@ -31,7 +31,7 @@ resource "mysql_user" "jdoe" {
 ## Example Usage for TiDB X509 Access
 
 ```hcl
-resource "mysql_user" "teleport_user" {
+resource "mysql_user" "x509_user" {
   user       = "alice"
   host       = "%"
   tls_option = "X509"

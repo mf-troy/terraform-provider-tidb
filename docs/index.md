@@ -29,17 +29,15 @@ Although many resources still use the historical `mysql_*` naming prefix, this p
 
 ## Why this provider exists
 
-We use Terraform to manage a large number of TiDB users.
-
 The upstream MySQL-compatible provider is a strong base, but TiDB role lifecycle handling needs tighter guarantees than generic MySQL-oriented quoting and parsing provide. In particular, this fork improves stability around:
 
 - `GRANT role TO user`
 - `REVOKE role FROM user`
 - `ALTER USER ... DEFAULT ROLE`
 - mixed role identifier formats such as:
-  - `teleport_reader`
-  - `teleport_reader@%`
-  - `'teleport_reader'@'%'`
+  - `readonly_role`
+  - `readonly_role@%`
+  - `'readonly_role'@'%'`
 
 ## Getting started
 
@@ -61,21 +59,21 @@ provider "tidb" {
 }
 ```
 
-## Common Teleport / X509 pattern
+## Common role grant pattern
 
-This is the most common access model for our TiDB usage:
+This is a common TiDB access pattern:
 
 ```hcl
-resource "mysql_user" "teleport_reader" {
+resource "mysql_user" "readonly_user" {
   user       = "alice"
   host       = "%"
   tls_option = "X509"
 }
 
-resource "mysql_grant" "teleport_reader_role" {
-  user  = mysql_user.teleport_reader.user
-  host  = mysql_user.teleport_reader.host
-  roles = ["teleport_reader"]
+resource "mysql_grant" "readonly_role" {
+  user  = mysql_user.readonly_user.user
+  host  = mysql_user.readonly_user.host
+  roles = ["readonly_role"]
 }
 ```
 

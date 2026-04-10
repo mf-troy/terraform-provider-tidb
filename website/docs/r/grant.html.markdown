@@ -71,7 +71,7 @@ resource "mysql_grant" "developer" {
 
 ~> **Note:** Attributes `role` and `roles` are only supported in MySQL 8 and above.
 
-~> **TiDB note:** This provider is commonly used with TiDB role grants such as `roles = ["teleport_reader"]`. Legacy quoted role identifiers like `"'teleport_reader'@'%'"` are normalized by the provider where supported.
+~> **TiDB note:** This provider is commonly used with TiDB role grants such as `roles = ["readonly_role"]`. Legacy quoted role identifiers like `"'readonly_role'@'%'"` are normalized by the provider where supported.
 
 The following arguments are supported:
 

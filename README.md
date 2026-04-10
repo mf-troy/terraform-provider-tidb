@@ -6,17 +6,15 @@ This repository is based on the [`petoju/terraform-provider-mysql`](https://gith
 
 ## Why this fork exists
 
-We use Terraform to manage a large number of database users in TiDB.
-
 The upstream MySQL-compatible provider is a strong base, but we hit TiDB-specific issues around role lifecycle management, especially for:
 
 - `GRANT role TO user`
 - `REVOKE role FROM user`
 - default roles
 - role identifiers stored in mixed formats such as:
-  - `teleport_reader`
-  - `teleport_reader@%`
-  - `'teleport_reader'@'%'`
+  - `readonly_role`
+  - `readonly_role@%`
+  - `'readonly_role'@'%'`
 
 This fork exists so we can make TiDB behavior explicit and predictable instead of relying on MySQL-oriented quoting/parsing assumptions.
 
@@ -24,7 +22,7 @@ This fork exists so we can make TiDB behavior explicit and predictable instead o
 
 The provider is being adapted to support TiDB user management as a first-class Terraform workflow, with emphasis on:
 
-- certificate-based users for Teleport
+- certificate-based users
 - declarative role membership
 - stable read/plan/apply behavior
 - compatibility with existing legacy state formats
@@ -38,6 +36,42 @@ The first TiDB-specific patch in this fork fixes role identifier normalization f
 - `mysql_role`
 
 The provider now canonicalizes role identifiers before generating SQL, so mixed role formats are converted into a single stable form before `GRANT`, `REVOKE`, `ALTER USER ... DEFAULT ROLE`, and role operations are executed.
+
+## Getting started
+
+```hcl
+terraform {
+  required_providers {
+    tidb = {
+      source  = "mf-troy/tidb"
+      version = "~> 0.1"
+    }
+  }
+}
+
+provider "tidb" {
+  endpoint = "tidb.example.com:4000"
+  username = "terraform-admin"
+  password = var.tidb_admin_password
+  tls      = "skip-verify"
+}
+```
+
+## Common role grant pattern
+
+```hcl
+resource "mysql_user" "readonly_user" {
+  user       = "alice"
+  host       = "%"
+  tls_option = "X509"
+}
+
+resource "mysql_grant" "readonly_role" {
+  user  = mysql_user.readonly_user.user
+  host  = mysql_user.readonly_user.host
+  roles = ["readonly_role"]
+}
+```
 
 ## Planned direction
 
@@ -126,4 +160,4 @@ This repository should become:
 
 - the public home of the TiDB provider
 - the source of truth for TiDB-specific provider fixes
-- the provider used by our Terraform modules instead of generic MySQL behavior where TiDB semantics differ
+- the provider used instead of generic MySQL behavior where TiDB semantics differ
