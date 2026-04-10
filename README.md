@@ -6,7 +6,7 @@ This repository is based on the [`petoju/terraform-provider-mysql`](https://gith
 
 ## Why this fork exists
 
-The upstream MySQL-compatible provider is a strong base, but we hit TiDB-specific issues around role lifecycle management, especially for:
+The upstream MySQL-compatible provider is a strong base, but TiDB-specific issues around role lifecycle management require additional care, especially for:
 
 - `GRANT role TO user`
 - `REVOKE role FROM user`
@@ -81,7 +81,7 @@ Short-term goal:
 
 Mid-term goal:
 
-- provide a clean Terraform-native way to manage TiDB users in the same desired-state style we already use for ClickHouse
+- provide a clean Terraform-native way to manage TiDB users in a desired-state workflow
 
 Possible future direction:
 
@@ -152,7 +152,7 @@ terraform {
 
 - this repository is a fork of `petoju/terraform-provider-mysql`
 - upstream is kept as a Git remote for easier rebasing/cherry-picking
-- TiDB-specific behavior is implemented here intentionally rather than patched ad hoc in Terraform modules
+- TiDB-specific behavior is implemented here intentionally rather than handled ad hoc outside the provider
 
 ## Repository goals
 

@@ -1,7 +1,7 @@
 terraform {
   required_providers {
     mysql = {
-      source  = "petoju/mysql"
+      source  = "mf-troy/tidb"
       version = "~> 3.0"
     }
   }

@@ -74,5 +74,5 @@ The upstream MySQL-compatible provider is a strong base, but TiDB role lifecycle
 ## Notes
 
 - Resource names currently retain the `mysql_*` prefix for backward compatibility.
-- Legacy quoted role identifiers such as `"'teleport_reader'@'%'"` are normalized where supported.
+- Legacy quoted role identifiers such as `"'readonly_role'@'%'"` are normalized where supported.
 - For TiDB user management, the most relevant resources are `mysql_user`, `mysql_grant`, `mysql_default_roles`, `mysql_role`, and `mysql_ti_config`.

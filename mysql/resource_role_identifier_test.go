@@ -10,23 +10,23 @@ func TestNormalizeRoleIdentifier(t *testing.T) {
 	}{
 		{
 			name:     "bare role name stays bare",
-			input:    "teleport_reader",
-			expected: "teleport_reader",
+			input:    "readonly_role",
+			expected: "readonly_role",
 		},
 		{
 			name:     "quoted percent-host role normalizes to bare name",
-			input:    "'teleport_reader'@'%'",
-			expected: "teleport_reader",
+			input:    "'readonly_role'@'%'",
+			expected: "readonly_role",
 		},
 		{
 			name:     "explicit percent-host role normalizes to bare name",
-			input:    "teleport_reader@%",
-			expected: "teleport_reader",
+			input:    "readonly_role@%",
+			expected: "readonly_role",
 		},
 		{
 			name:     "non-default host is preserved",
-			input:    "'teleport_reader'@'internal'",
-			expected: "teleport_reader@internal",
+			input:    "'readonly_role'@'internal'",
+			expected: "readonly_role@internal",
 		},
 	}
 
@@ -48,18 +48,18 @@ func TestRoleIdentifierSQL(t *testing.T) {
 	}{
 		{
 			name:     "bare role name gets percent host",
-			input:    "teleport_reader",
-			expected: "'teleport_reader'@'%'",
+			input:    "readonly_role",
+			expected: "'readonly_role'@'%'",
 		},
 		{
 			name:     "legacy quoted role stays canonical",
-			input:    "'teleport_reader'@'%'",
-			expected: "'teleport_reader'@'%'",
+			input:    "'readonly_role'@'%'",
+			expected: "'readonly_role'@'%'",
 		},
 		{
 			name:     "non-default host is preserved",
-			input:    "teleport_reader@internal",
-			expected: "'teleport_reader'@'internal'",
+			input:    "readonly_role@internal",
+			expected: "'readonly_role'@'internal'",
 		},
 	}
 
@@ -76,17 +76,17 @@ func TestRoleIdentifierSQL(t *testing.T) {
 func TestRoleGrantSQLStatements(t *testing.T) {
 	grant := &RoleGrant{
 		Roles: []string{
-			"teleport_reader",
-			"'teleport_creator'@'%'",
+			"readonly_role",
+			"'writer_role'@'%'",
 		},
 		UserOrRole: UserOrRole{
-			Name: "networker",
+			Name: "app_user",
 			Host: "%",
 		},
 	}
 
-	expectedGrant := "GRANT 'teleport_reader'@'%', 'teleport_creator'@'%' TO 'networker'@'%'"
-	expectedRevoke := "REVOKE 'teleport_reader'@'%', 'teleport_creator'@'%' FROM 'networker'@'%'"
+	expectedGrant := "GRANT 'readonly_role'@'%', 'writer_role'@'%' TO 'app_user'@'%'"
+	expectedRevoke := "REVOKE 'readonly_role'@'%', 'writer_role'@'%' FROM 'app_user'@'%'"
 
 	if actual := grant.SQLGrantStatement(); actual != expectedGrant {
 		t.Fatalf("expected grant SQL %q, got %q", expectedGrant, actual)

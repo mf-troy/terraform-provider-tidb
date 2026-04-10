@@ -1,6 +1,6 @@
 # AWS RDS IAM Authentication with Role ARN
 
-This example demonstrates how to use the terraform-provider-mysql with AWS RDS IAM authentication using assume role functionality.
+This example demonstrates how to use the provider with AWS RDS IAM authentication using assume role functionality.
 
 ## Prerequisites
 
