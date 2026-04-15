@@ -109,6 +109,7 @@ func Provider() *schema.Provider {
 			"password": {
 				Type:        schema.TypeString,
 				Optional:    true,
+				Sensitive:   true,
 				DefaultFunc: schema.EnvDefaultFunc("MYSQL_PASSWORD", nil),
 			},
 
@@ -968,7 +969,7 @@ func connectToMySQLInternal(ctx context.Context, conf *MySQLConfiguration) (*One
 	defer connectionCacheMtx.Unlock()
 
 	dsn := conf.Config.FormatDSN()
-	log.Printf("[DEBUG] Using dsn: %s", dsn)
+	log.Printf("[DEBUG] Opening MySQL connection: net=%s addr=%s user=%s tls=%s", conf.Config.Net, conf.Config.Addr, conf.Config.User, conf.Config.TLSConfig)
 	if connectionCache[dsn] != nil {
 		return connectionCache[dsn], nil
 	}

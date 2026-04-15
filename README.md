@@ -73,6 +73,14 @@ resource "mysql_grant" "readonly_role" {
 }
 ```
 
+## Security notes
+
+- Prefer certificate-based users for TiDB access flows where possible.
+- Store provider admin credentials in a secret manager and inject them at runtime.
+- Avoid hardcoding provider passwords directly in Terraform code.
+- Use TLS for provider-to-database connections whenever the target TiDB deployment supports it.
+- Provider debug logging no longer prints full DSNs with embedded credentials.
+
 ## Planned direction
 
 Short-term goal:
