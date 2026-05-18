@@ -436,6 +436,15 @@ func resourceGrant() *schema.Resource {
 				Default:  false,
 			},
 
+			// After GRANT role TO user, run ALTER USER ... DEFAULT ROLE ALL so every
+			// granted role is active at login (same effect as SET DEFAULT ROLE ALL TO ...).
+			// Only applies to role grants targeting a user (user+host), not grants TO a role.
+			"default_role_all": {
+				Type:     schema.TypeBool,
+				Optional: true,
+				Default:  false,
+			},
+
 			"tls_option": {
 				Type:       schema.TypeString,
 				Optional:   true,
@@ -457,6 +466,28 @@ func supportsRoles(ctx context.Context, meta interface{}) (bool, error) {
 
 var kReProcedureWithoutDatabase = regexp.MustCompile(`(?i)^(function|procedure) ([^.]*)$`)
 var kReProcedureWithDatabase = regexp.MustCompile(`(?i)^(function|procedure) ([^.]*)\.([^.]*)$`)
+
+// roleGrantTargetsUser reports whether a RoleGrant assigns roles to a login user
+// (user+host) rather than to another role (role-only grantee).
+func roleGrantTargetsUser(rg *RoleGrant) bool {
+	return rg.UserOrRole.Host != ""
+}
+
+func alterUserDefaultRoleAll(ctx context.Context, db *sql.DB, user, host string, enable bool) error {
+	var suffix string
+	if enable {
+		suffix = "ALL"
+	} else {
+		suffix = "NONE"
+	}
+	stmtSQL := fmt.Sprintf("ALTER USER %s DEFAULT ROLE %s", formatUserIdentifier(user, host), suffix)
+	log.Println("[DEBUG] Executing statement:", stmtSQL)
+	_, err := db.ExecContext(ctx, stmtSQL)
+	if err != nil {
+		return fmt.Errorf("failed setting DEFAULT ROLE for user: %w", err)
+	}
+	return nil
+}
 
 func parseResourceFromData(d *schema.ResourceData) (MySQLGrant, diag.Diagnostics) {
 
@@ -549,7 +580,7 @@ func CreateGrant(ctx context.Context, d *schema.ResourceData, meta interface{}) 
 
 	// Parse the ResourceData
 	grant, diagErr := parseResourceFromData(d)
-	if err != nil {
+	if diagErr != nil {
 		return diagErr
 	}
 
@@ -582,6 +613,12 @@ func CreateGrant(ctx context.Context, d *schema.ResourceData, meta interface{}) 
 	_, err = db.ExecContext(ctx, stmtSQL)
 	if err != nil {
 		return diag.Errorf("Error running SQL (%v): %v", stmtSQL, err)
+	}
+
+	if rg, ok := grant.(*RoleGrant); ok && roleGrantTargetsUser(rg) && d.Get("default_role_all").(bool) {
+		if err := alterUserDefaultRoleAll(ctx, db, rg.UserOrRole.Name, rg.UserOrRole.Host, true); err != nil {
+			return diag.FromErr(err)
+		}
 	}
 
 	d.SetId(grant.GetId())
@@ -620,10 +657,6 @@ func UpdateGrant(ctx context.Context, d *schema.ResourceData, meta interface{}) 
 		return diag.FromErr(err)
 	}
 
-	if err != nil {
-		return diag.Errorf("failed getting user or role: %v", err)
-	}
-
 	if d.HasChange("privileges") {
 		grant, diagErr := parseResourceFromData(d)
 		if diagErr != nil {
@@ -633,6 +666,21 @@ func UpdateGrant(ctx context.Context, d *schema.ResourceData, meta interface{}) 
 		err = updatePrivileges(ctx, db, d, grant)
 		if err != nil {
 			return diag.Errorf("failed updating privileges: %v", err)
+		}
+	}
+
+	if d.HasChange("default_role_all") {
+		grant, diagErr := parseResourceFromData(d)
+		if diagErr != nil {
+			return diagErr
+		}
+		if rg, ok := grant.(*RoleGrant); ok && roleGrantTargetsUser(rg) {
+			enable := d.Get("default_role_all").(bool)
+			if err := alterUserDefaultRoleAll(ctx, db, rg.UserOrRole.Name, rg.UserOrRole.Host, enable); err != nil {
+				return diag.FromErr(err)
+			}
+		} else if d.Get("default_role_all").(bool) {
+			return diag.Errorf("default_role_all applies only to role grants that target a user (user and host), not role grants to another role")
 		}
 	}
 
@@ -695,7 +743,7 @@ func DeleteGrant(ctx context.Context, d *schema.ResourceData, meta interface{}) 
 
 	// Parse the grant from ResourceData
 	grant, diagErr := parseResourceFromData(d)
-	if err != nil {
+	if diagErr != nil {
 		return diagErr
 	}
 
