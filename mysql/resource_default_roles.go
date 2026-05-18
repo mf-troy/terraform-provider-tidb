@@ -58,14 +58,12 @@ func checkDefaultRolesSupport(ctx context.Context, meta interface{}) error {
 }
 
 func alterUserDefaultRoles(ctx context.Context, db *sql.DB, user, host string, roles []string) error {
+	userSpec := fmt.Sprintf("%s@%s", quoteString(user), quoteString(host))
 	var stmtSQL string
-
-	stmtSQL = fmt.Sprintf("ALTER USER '%s'@'%s' DEFAULT ROLE ", user, host)
-
 	if len(roles) > 0 {
-		stmtSQL += strings.Join(roleIdentifiersSQL(roles), ", ")
+		stmtSQL = fmt.Sprintf("SET DEFAULT ROLE %s TO %s", strings.Join(roleIdentifiersSQL(roles), ", "), userSpec)
 	} else {
-		stmtSQL += "NONE"
+		stmtSQL = fmt.Sprintf("SET DEFAULT ROLE NONE TO %s", userSpec)
 	}
 
 	log.Println("[DEBUG] Executing statement:", stmtSQL)

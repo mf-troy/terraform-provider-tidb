@@ -67,7 +67,7 @@ resource "mysql_grant" "developer" {
 
 ### TiDB / MySQL 8: activate all granted roles at login
 
-Roles granted with `GRANT role TO user` are not active until the user runs `SET ROLE` unless you set default roles. Set `default_role_all = true` on a **user** role grant to run `ALTER USER ... DEFAULT ROLE ALL` after the grant (equivalent to `SET DEFAULT ROLE ALL TO 'user'@'host'`).
+Roles granted with `GRANT role TO user` are not active until the user runs `SET ROLE` unless you set default roles. Set `default_role_all = true` on a **user** role grant to run `SET DEFAULT ROLE ALL TO 'user'@'host'` after the grant (TiDB-compatible; plain MySQL 8 also accepts this statement).
 
 ```hcl
 resource "mysql_grant" "developer" {
@@ -97,7 +97,7 @@ The following arguments are supported:
 * `table` - (Optional) Which table to grant `privileges` on. Defaults to `*`, which is all tables.
 * `privileges` - (Optional) A list of privileges to grant to the user. Refer to a list of privileges (such as [here](https://dev.mysql.com/doc/refman/5.5/en/grant.html)) for applicable privileges. Conflicts with `roles`.
 * `roles` - (Optional) A list of roles to grant to the user. Conflicts with `privileges`.
-* `default_role_all` - (Optional) When `true` on a role grant to a user, runs `ALTER USER ... DEFAULT ROLE ALL` after `GRANT`, so every role granted to that user is active at login without `SET ROLE`. Defaults to `false`. Ignored for grants that target `role` instead of `user`/`host`.
+* `default_role_all` - (Optional) When `true` on a role grant to a user, runs `SET DEFAULT ROLE ALL TO ...` after `GRANT`, so every role granted to that user is active at login without `SET ROLE`. Defaults to `false`. Ignored for grants that target `role` instead of `user`/`host`.
 * `tls_option` - (Optional) An TLS-Option for the `GRANT` statement. The value is suffixed to `REQUIRE`. A value of 'SSL' will generate a `GRANT ... REQUIRE SSL` statement. See the [MYSQL `GRANT` documentation](https://dev.mysql.com/doc/refman/5.7/en/grant.html) for more. Ignored if MySQL version is under 5.7.0.
 * `grant` - (Optional) Whether to also give the user privileges to grant the same privileges to other users.
 

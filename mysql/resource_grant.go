@@ -436,8 +436,8 @@ func resourceGrant() *schema.Resource {
 				Default:  false,
 			},
 
-			// After GRANT role TO user, run ALTER USER ... DEFAULT ROLE ALL so every
-			// granted role is active at login (same effect as SET DEFAULT ROLE ALL TO ...).
+			// After GRANT role TO user, run SET DEFAULT ROLE ALL TO ... so every
+			// granted role is active at login (TiDB-compatible).
 			// Only applies to role grants targeting a user (user+host), not grants TO a role.
 			"default_role_all": {
 				Type:     schema.TypeBool,
@@ -474,13 +474,15 @@ func roleGrantTargetsUser(rg *RoleGrant) bool {
 }
 
 func alterUserDefaultRoleAll(ctx context.Context, db *sql.DB, user, host string, enable bool) error {
-	var suffix string
+	var keyword string
 	if enable {
-		suffix = "ALL"
+		keyword = "ALL"
 	} else {
-		suffix = "NONE"
+		keyword = "NONE"
 	}
-	stmtSQL := fmt.Sprintf("ALTER USER %s DEFAULT ROLE %s", formatUserIdentifier(user, host), suffix)
+	// TiDB implements SET DEFAULT ROLE but rejects ALTER USER ... DEFAULT ROLE ALL (syntax error).
+	userSpec := fmt.Sprintf("%s@%s", quoteString(user), quoteString(host))
+	stmtSQL := fmt.Sprintf("SET DEFAULT ROLE %s TO %s", keyword, userSpec)
 	log.Println("[DEBUG] Executing statement:", stmtSQL)
 	_, err := db.ExecContext(ctx, stmtSQL)
 	if err != nil {
