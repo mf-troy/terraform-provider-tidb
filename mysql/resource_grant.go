@@ -491,6 +491,65 @@ func alterUserDefaultRoleAll(ctx context.Context, db *sql.DB, user, host string,
 	return nil
 }
 
+func bareRoleName(role string) string {
+	r := strings.TrimSpace(role)
+	r = strings.ReplaceAll(r, "`", "")
+	r = strings.ReplaceAll(r, "'", "")
+	if i := strings.Index(r, "@"); i >= 0 {
+		r = r[:i]
+	}
+	return strings.ToLower(strings.TrimSpace(r))
+}
+
+func reconcileDefaultRoleAll(ctx context.Context, db *sql.DB, d *schema.ResourceData, rg *RoleGrant) {
+	if !roleGrantTargetsUser(rg) {
+		return
+	}
+
+	granted := make(map[string]struct{}, len(rg.Roles))
+	for _, role := range rg.Roles {
+		if name := bareRoleName(role); name != "" {
+			granted[name] = struct{}{}
+		}
+	}
+	if len(granted) == 0 {
+		d.Set("default_role_all", false)
+		return
+	}
+
+	stmtSQL := "SELECT default_role_user FROM mysql.default_roles WHERE user = ? AND host = ?"
+	log.Println("[DEBUG] Executing statement:", stmtSQL)
+	rows, err := db.QueryContext(ctx, stmtSQL, rg.UserOrRole.Name, rg.UserOrRole.Host)
+	if err != nil {
+		log.Printf("[WARN] could not read mysql.default_roles for %s@%s, leaving default_role_all unchanged: %v", rg.UserOrRole.Name, rg.UserOrRole.Host, err)
+		return
+	}
+	defer rows.Close()
+
+	defaults := make(map[string]struct{})
+	for rows.Next() {
+		var role string
+		if err := rows.Scan(&role); err != nil {
+			log.Printf("[WARN] failed scanning mysql.default_roles for %s@%s: %v", rg.UserOrRole.Name, rg.UserOrRole.Host, err)
+			return
+		}
+		defaults[bareRoleName(role)] = struct{}{}
+	}
+	if err := rows.Err(); err != nil {
+		log.Printf("[WARN] failed reading mysql.default_roles rows for %s@%s: %v", rg.UserOrRole.Name, rg.UserOrRole.Host, err)
+		return
+	}
+
+	allDefault := true
+	for name := range granted {
+		if _, ok := defaults[name]; !ok {
+			allDefault = false
+			break
+		}
+	}
+	d.Set("default_role_all", allDefault)
+}
+
 func parseResourceFromData(d *schema.ResourceData) (MySQLGrant, diag.Diagnostics) {
 
 	// Step 1: Parse the user/role
@@ -649,6 +708,10 @@ func ReadGrant(ctx context.Context, d *schema.ResourceData, meta interface{}) di
 	}
 
 	setDataFromGrant(grantFromDb, d)
+
+	if rg, ok := grantFromDb.(*RoleGrant); ok {
+		reconcileDefaultRoleAll(ctx, db, d, rg)
+	}
 
 	return nil
 }
