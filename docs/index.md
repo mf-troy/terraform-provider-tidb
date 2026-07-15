@@ -59,6 +59,23 @@ provider "tidb" {
 }
 ```
 
+## Connection timeouts
+
+The provider exposes three optional timeout arguments, all in seconds:
+
+- `dial_timeout_sec` — timeout for establishing the TCP connection to TiDB (default `15`, `0` disables it)
+- `read_timeout_sec` — network read timeout (default `0`, disabled)
+- `write_timeout_sec` — network write timeout (default `0`, disabled)
+
+```hcl
+provider "tidb" {
+  endpoint         = "tidb.example.com:4000"
+  username         = "terraform-admin"
+  password         = var.tidb_admin_password
+  dial_timeout_sec = 10
+}
+```
+
 ## Common role grant pattern
 
 This is a common TiDB access pattern:

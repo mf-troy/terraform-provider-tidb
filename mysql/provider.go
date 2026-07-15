@@ -60,6 +60,11 @@ type OneConnection struct {
 	Version *version.Version
 }
 
+type dialResult struct {
+	conn net.Conn
+	err  error
+}
+
 type MySQLConfiguration struct {
 	Config                 *mysql.Config
 	MaxConnLifetime        time.Duration
@@ -204,6 +209,27 @@ func Provider() *schema.Provider {
 				Type:     schema.TypeInt,
 				Optional: true,
 				Default:  300,
+			},
+
+			"dial_timeout_sec": {
+				Type:         schema.TypeInt,
+				Optional:     true,
+				Default:      15,
+				ValidateFunc: validation.IntAtLeast(0),
+			},
+
+			"read_timeout_sec": {
+				Type:         schema.TypeInt,
+				Optional:     true,
+				Default:      0,
+				ValidateFunc: validation.IntAtLeast(0),
+			},
+
+			"write_timeout_sec": {
+				Type:         schema.TypeInt,
+				Optional:     true,
+				Default:      0,
+				ValidateFunc: validation.IntAtLeast(0),
 			},
 
 			"iam_database_authentication": {
@@ -653,6 +679,9 @@ func providerConfigure(ctx context.Context, d *schema.ResourceData) (interface{}
 		AllowCleartextPasswords: allowClearTextPasswords,
 		InterpolateParams:       true,
 		Params:                  connParams,
+		Timeout:                 time.Duration(d.Get("dial_timeout_sec").(int)) * time.Second,
+		ReadTimeout:             time.Duration(d.Get("read_timeout_sec").(int)) * time.Second,
+		WriteTimeout:            time.Duration(d.Get("write_timeout_sec").(int)) * time.Second,
 	}
 
 	if tlsConfigStruct != nil {
@@ -665,7 +694,27 @@ func providerConfigure(ctx context.Context, d *schema.ResourceData) (interface{}
 	}
 
 	mysql.RegisterDialContext("tcp", func(ctx context.Context, network string) (net.Conn, error) {
-		return dialer.Dial("tcp", network)
+		if contextDialer, ok := dialer.(proxy.ContextDialer); ok {
+			return contextDialer.DialContext(ctx, "tcp", network)
+		}
+
+		resultCh := make(chan dialResult, 1)
+		go func() {
+			conn, dialErr := dialer.Dial("tcp", network)
+			resultCh <- dialResult{conn: conn, err: dialErr}
+		}()
+
+		select {
+		case <-ctx.Done():
+			go func() {
+				if res := <-resultCh; res.conn != nil {
+					res.conn.Close()
+				}
+			}()
+			return nil, ctx.Err()
+		case res := <-resultCh:
+			return res.conn, res.err
+		}
 	})
 
 	mysqlConf := &MySQLConfiguration{
