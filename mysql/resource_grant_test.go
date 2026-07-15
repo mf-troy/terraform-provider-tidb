@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"math/rand"
+	"reflect"
 	"regexp"
 	"strings"
 	"testing"
@@ -1565,4 +1566,31 @@ func getAdditionalGrantSample(dbName string, privileges string) string {
       privileges = [%s]
     }
     `, dbName, privileges)
+}
+
+func TestDiffRoleLists(t *testing.T) {
+	cases := []struct {
+		name        string
+		oldRoles    []string
+		newRoles    []string
+		wantAdded   []string
+		wantRemoved []string
+	}{
+		{"add one", []string{"a"}, []string{"a", "b"}, []string{"b"}, nil},
+		{"remove one", []string{"a", "b"}, []string{"a"}, nil, []string{"b"}},
+		{"swap", []string{"a"}, []string{"b"}, []string{"b"}, []string{"a"}},
+		{"no change", []string{"a", "b"}, []string{"b", "a"}, nil, nil},
+		{"from empty", nil, []string{"a"}, []string{"a"}, nil},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			added, removed := diffRoleLists(tc.oldRoles, tc.newRoles)
+			if !reflect.DeepEqual(added, tc.wantAdded) {
+				t.Errorf("added = %v, want %v", added, tc.wantAdded)
+			}
+			if !reflect.DeepEqual(removed, tc.wantRemoved) {
+				t.Errorf("removed = %v, want %v", removed, tc.wantRemoved)
+			}
+		})
+	}
 }

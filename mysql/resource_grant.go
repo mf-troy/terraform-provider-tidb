@@ -423,7 +423,6 @@ func resourceGrant() *schema.Resource {
 			"roles": {
 				Type:          schema.TypeSet,
 				Optional:      true,
-				ForceNew:      true,
 				ConflictsWith: []string{"privileges"},
 				Elem:          &schema.Schema{Type: schema.TypeString},
 				Set:           schema.HashString,
@@ -734,6 +733,51 @@ func UpdateGrant(ctx context.Context, d *schema.ResourceData, meta interface{}) 
 		}
 	}
 
+	if d.HasChange("roles") {
+		oldRolesIf, newRolesIf := d.GetChange("roles")
+		oldRoles := normalizeRoleIdentifiers(setToArray(oldRolesIf))
+		newRoles := normalizeRoleIdentifiers(setToArray(newRolesIf))
+
+		if len(newRoles) == 0 {
+			return diag.Errorf("roles cannot be emptied in-place; remove the mysql_grant resource instead")
+		}
+
+		grant, diagErr := parseResourceFromData(d)
+		if diagErr != nil {
+			return diagErr
+		}
+		rg, ok := grant.(*RoleGrant)
+		if !ok {
+			return diag.Errorf("roles changed on a non-role grant")
+		}
+
+		addedRoles, removedRoles := diffRoleLists(oldRoles, newRoles)
+
+		if len(addedRoles) > 0 {
+			grantRg := &RoleGrant{Roles: addedRoles, Grant: rg.Grant, UserOrRole: rg.UserOrRole, TLSOption: rg.TLSOption}
+			stmtSQL := grantRg.SQLGrantStatement()
+			log.Println("[DEBUG] Executing statement:", stmtSQL)
+			if _, err := db.ExecContext(ctx, stmtSQL); err != nil {
+				return diag.Errorf("Error running SQL (%v): %v", stmtSQL, err)
+			}
+		}
+
+		if len(removedRoles) > 0 {
+			revokeRg := &RoleGrant{Roles: removedRoles, UserOrRole: rg.UserOrRole}
+			stmtSQL := revokeRg.SQLRevokeStatement()
+			log.Println("[DEBUG] Executing statement:", stmtSQL)
+			if _, err := db.ExecContext(ctx, stmtSQL); err != nil {
+				return diag.Errorf("Error running SQL (%v): %v", stmtSQL, err)
+			}
+		}
+
+		if len(addedRoles) > 0 && roleGrantTargetsUser(rg) && d.Get("default_role_all").(bool) {
+			if err := alterUserDefaultRoleAll(ctx, db, rg.UserOrRole.Name, rg.UserOrRole.Host, true); err != nil {
+				return diag.FromErr(err)
+			}
+		}
+	}
+
 	if d.HasChange("default_role_all") {
 		grant, diagErr := parseResourceFromData(d)
 		if diagErr != nil {
@@ -750,6 +794,28 @@ func UpdateGrant(ctx context.Context, d *schema.ResourceData, meta interface{}) 
 	}
 
 	return nil
+}
+
+func diffRoleLists(oldRoles, newRoles []string) (added, removed []string) {
+	oldSet := make(map[string]struct{}, len(oldRoles))
+	for _, r := range oldRoles {
+		oldSet[r] = struct{}{}
+	}
+	newSet := make(map[string]struct{}, len(newRoles))
+	for _, r := range newRoles {
+		newSet[r] = struct{}{}
+	}
+	for _, r := range newRoles {
+		if _, ok := oldSet[r]; !ok {
+			added = append(added, r)
+		}
+	}
+	for _, r := range oldRoles {
+		if _, ok := newSet[r]; !ok {
+			removed = append(removed, r)
+		}
+	}
+	return added, removed
 }
 
 func updatePrivileges(ctx context.Context, db *sql.DB, d *schema.ResourceData, grant MySQLGrant) error {
